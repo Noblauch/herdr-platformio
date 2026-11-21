@@ -2,8 +2,9 @@
 
 ![PlatformIO logo next to the herdr-platformio panel](preview.png)
 
-PlatformIO for [herdr](https://herdr.dev): build, upload, monitor and every other task of your PlatformIO project
-in one panel, plus an editor for `platformio.ini`. A click on a task runs `pio` in a herdr terminal.
+Build, upload and monitor your PlatformIO project without leaving [herdr](https://herdr.dev). A view lists every
+task of the active environment and runs it in a herdr terminal with one click; `platformio.ini` opens in an editor
+right there.
 
 Requires PlatformIO Core (`pio`) and macOS or Linux.
 
@@ -42,7 +43,7 @@ herdr-app do tab.new --mod platformio --name PlatformIO
 ## What it runs and touches
 
 - Programs: `pio` (else `platformio`, else `~/.platformio/penv/bin/pio`, the installer's default place) for
-  everything PlatformIO does, and `/bin/sh` only as a wrapper that keeps a task's terminal open until Enter.
+  everything PlatformIO does, and `/bin/sh` only as a wrapper that names a task's terminal and keeps it open until Enter (it waits with `head`).
 - Without a click: `pio --version` once, to find `pio`. When the folder holds a `platformio.ini`, also
   `pio project config` and `pio project metadata -e <env>` (slow: often 15 to 45 seconds, longer when it first
   downloads a platform; it gives up after 5 minutes). Both run again only when `platformio.ini` changes or

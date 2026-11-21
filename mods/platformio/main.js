@@ -23,12 +23,9 @@ async function findPio(on) {
   return null;
 }
 
-// A pane closes when its program exits: keep the output until Enter.
-const WRAP = '"$@"; c=$?; printf "\\n\\033[2m[exit %s] Press Enter to close\\033[0m " "$c"; read -r _';
-// Targets that leave the serial port alone, so a running monitor survives them.
-const OFFLINE = new Set(["menuconfig", "buildfs", "size", "uploadfsota", "metrics", "metrics-only", "coredump-only", "decode_crash"]);
-// Tasks that keep the serial port open after they start.
-const HOLDING = new Set(["pio-monitor", "pio-upload-monitor"]);
+// Titles the terminal with the task ($1) for its pane header, runs it, and keeps the output until Enter,
+// since a pane closes when its program exits. The wait is head, not read: herdr names a waiting shell "sh".
+const WRAP = 'printf "\\033]2;%s\\007" "$1"; shift; "$@"; c=$?; printf "\\n\\033[2m[exit %s] Press Enter to close\\033[0m " "$c"; exec head -n 1 >/dev/null';
 
 // The editor has no INI grammar, so "ini" shows plain text; swap the name here once herdr adds one.
 const INI_LANGUAGE = "ini";
@@ -213,7 +210,7 @@ export default class PlatformIO extends View {
   groups() {
     const env = this.env, v = this.verbose ? ["-v"] : [], port = this.port ? ["--upload-port", this.port] : [];
     const target = (...names) => ["run", "-e", env, ...names.flatMap((n) => ["-t", n]), ...v];
-    const task = (t) => ({ id: t.name, title: t.title, args: [...target(t.name), ...port], serial: !OFFLINE.has(t.name) });
+    const task = (t) => ({ id: t.name, title: t.title, args: [...target(t.name), ...port] });
     const upload = (this.targets ?? []).find((t) => t.name === "upload");
     // PlatformIO files every AddCustomTarget under "Custom": the environment's own extra_scripts add some, the platform's builder the rest.
     const scriptTasks = (this.targets ?? []).filter((t) => t.own).map(task);
@@ -222,8 +219,8 @@ export default class PlatformIO extends View {
       { id: "general", title: env ? "General" : "No environment", tasks: !env ? [] : [
         { id: "build", title: "Build", icon: "hammer", color: "ansi3", args: target() },
         ...(upload ? [{ ...task(upload), title: "Build & Upload", icon: "upload", color: "ansi2" },
-          { id: "upload-monitor", title: "Build & Upload & Monitor", icon: "upload", color: "ansi2", args: [...target("upload", "monitor"), ...port, ...(this.port ? ["--monitor-port", this.port] : [])], serial: true }] : []),
-        { id: "monitor", title: "Serial Monitor", icon: "terminal", color: "ansi4", args: ["device", "monitor", "-e", env, ...(this.port ? ["--port", this.port] : [])], serial: true },
+          { id: "upload-monitor", title: "Build & Upload & Monitor", icon: "upload", color: "ansi2", args: [...target("upload", "monitor"), ...port, ...(this.port ? ["--monitor-port", this.port] : [])] }] : []),
+        { id: "monitor", title: "Serial Monitor", icon: "terminal", color: "ansi4", args: ["device", "monitor", "-e", env, ...(this.port ? ["--port", this.port] : [])] },
         { id: "clean", title: "Clean", icon: "trash", args: target("clean") }] },
       ...(scriptTasks.length ? [{ id: "scripts", title: "Extra Scripts", tasks: scriptTasks }] : []),
       ...(platformTasks.length ? [{ id: "platform", title: "Platform", tasks: platformTasks }] : []),
@@ -235,15 +232,30 @@ export default class PlatformIO extends View {
         { id: "upgrade", title: "Upgrade PlatformIO", args: ["upgrade"] }] }];
   }
 
-  // One output terminal at a time, a task rerun replaces it; a monitor stays until a task needs its port.
-  start(task) {
-    const name = termName(task), holds = HOLDING.has(name);
-    for (const terminal of terminals()) {
-      const other = taskOf(terminal);
-      if (other && (other === name || (HOLDING.has(other) ? task.serial : !holds))) run("terminal.kill", { terminal: terminal.address });
+  // One task terminal at a time: a new task replaces the running one, in its pane when it is in this tab.
+  start(task, cx) {
+    const argv = ["/bin/sh", "-c", WRAP, termName(task), `[${task.title}]`, this.pio, ...task.args];
+    const old = terminals().filter(taskOf);
+    const tab = focused()?.tab;
+    const slot = panes().find((p) => p.tab === tab && p.cwd === this.dir && old.some((o) => o.address === p.terminal));
+    for (const terminal of old) if (terminal.address !== slot?.terminal) run("terminal.kill", { terminal: terminal.address });
+    if (!slot) {
+      run("terminal.open", { argv, folder: this.dir, place: focused()?.pane ? "down" : "tab" });
+      return;
     }
-    run("terminal.open", { argv: ["/bin/sh", "-c", WRAP, name, this.pio, ...task.args], folder: this.dir,
-      place: focused()?.pane ? "down" : "tab" });
+    // A closed pane's space goes to the pane above it, so split the old pane (the split starts in its folder),
+    // move the new pane above it, then close the old one.
+    const before = new Set(panes().map((p) => p.pane));
+    run("pane.split", { direction: "down", pane: slot.pane, argv });
+    cx.spawn(async (cx) => {
+      let fresh = null;
+      for (let i = 0; i < 40 && !fresh; i++) {
+        fresh = panes().find((p) => p.tab === slot.tab && !before.has(p.pane)) ?? null;
+        if (!fresh) await cx.sleep(25);
+      }
+      if (fresh) run("pane.swap", { pane: slot.pane, target: fresh.pane });
+      run("terminal.kill", { terminal: slot.terminal });
+    });
   }
 
   renderButton(t) {
@@ -308,7 +320,7 @@ export default class PlatformIO extends View {
           .child(div().flex_1().min_w(0).truncate().child(`[${g.title}]`))));
       if (!open) continue;
       const taskRow = (task, pl) => h_flex().id(`pio-task-${task.id}`).h(26).flex_none().pl(pl).pr(8).gap(8).items_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
-        .tooltip(["pio", ...task.args].join(" ")).on_click(() => this.start(task))
+        .tooltip(["pio", ...task.args].join(" ")).on_click((_e, cx) => this.start(task, cx))
         .child(svg(`mods/platformio/${task.icon ?? "task"}.svg`).size(12).flex_none().text_color(!task.icon && live.has(termName(task)) ? t.working : t[task.color] ?? t.muted))
         .child(div().flex_1().min_w(0).truncate().child(task.title));
       for (const task of g.tasks) rows.push(taskRow(task, 28));

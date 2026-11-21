@@ -1,6 +1,6 @@
 # PlatformIO
 
-PlatformIO in herdr: the tasks of the active environment, PlatformIO's own tasks, and an editor for `platformio.ini`. A click on a task runs `pio` in a herdr terminal.
+Build, upload and monitor your PlatformIO project without leaving herdr. A view lists every task of the active environment and runs it in a herdr terminal with one click; `platformio.ini` opens in an editor right there.
 
 ![PlatformIO](preview.png)
 
@@ -24,7 +24,7 @@ A side panel on the right, shown and hidden by a "PlatformIO" button (logo and l
 - **Project:** the focused terminal pane's folder (else the space's folder; in its own tab the mod has the focus, so it uses the space's folder), and only that folder: it counts as a project when it holds a `platformio.ini` itself. There is no search up or down. Without one the view says "No platformio.ini in this folder" ("Looking for a PlatformIO project…" while it checks); without `pio` it says "PlatformIO (pio) was not found on PATH".
 - **Environment:** the saved one, else `default_envs`, else the first. The choice, the port and "Verbose" are remembered per project.
 - **Targets:** from `pio project metadata -e <env> --json-output`, often 15 to 45 seconds, longer when it first downloads a platform; it gives up after 5 minutes. The environments come from `pio project config --json-output`. Both are fetched again only when `platformio.ini` changes or the reload icon is clicked; the targets are kept per project and environment (in `localStorage`). The folder and file are checked every 10 seconds, and right away when the focused folder changes.
-- **Run a task:** a click opens a terminal under the focused pane (a new tab when no pane has focus) and runs the command; the task's icon turns the `working` color while its terminal is open (only tasks with the default triangle; tasks with their own icon keep their color). One output terminal at a time: a new task closes the previous one (and its own earlier run), except that starting a monitor leaves a running task open. A monitor stays open until a task needs the serial port. The terminal stays after the program ends until Enter is pressed.
+- **Run a task:** a click opens a terminal under the focused pane (a new tab when no pane has focus) and runs the command; its pane header shows the task's title in square brackets ("[Build]", "[Serial Monitor]"). A terminal that the task replaces in the focused tab gives the new one its pane, at the same place and size; the task's icon turns the `working` color while its terminal is open (only tasks with the default triangle; tasks with their own icon keep their color). One task terminal at a time, a monitor included: a new task closes the previous one. The terminal stays after the program ends until Enter is pressed.
 - **Commands:** targets run `pio run -e <env> -t <target>`; Build `pio run -e <env>`; Build & Upload `-t upload`; Build & Upload & Monitor `-t upload -t monitor`; Clean `-t clean`; Serial Monitor `pio device monitor -e <env>`; Analyze Code `pio check -e <env>`; Update Packages `pio pkg update -e <env>`; Home `pio home`; Upgrade PlatformIO `pio upgrade`. A tooltip on each task shows its full command (`pio …` with the current flags). "Verbose" adds `-v` to the `pio run` tasks and Analyze Code. A chosen port adds `--upload-port <port>` to Build & Upload and every Extra Scripts and Platform target, `--upload-port` and `--monitor-port <port>` to Build & Upload & Monitor, and `--port <port>` to Serial Monitor.
 - **Editor:** a click on the `platformio.ini` row opens the file in herdr's `Editor` (editable, line numbers, no syntax colours). "Save" writes the file with `writeTextFile(path, text, expected)`, which fails when the file changed on disk meanwhile, then reloads the targets. "Save" shows only with unsaved changes. If the file changes on disk while there are unsaved edits, nothing is overwritten: the header says "platformio.ini changed on disk" and shows "Reload" (discards the edits). The back arrow asks once ("click ← again to discard") when there are unsaved changes. Saving works on this computer only.
 - **Port list:** "Searching…" while `pio device list` runs, then the devices with a hardware id; if it fails, its error shows instead of "No devices found".
@@ -33,9 +33,9 @@ A side panel on the right, shown and hidden by a "PlatformIO" button (logo and l
 ## Built from
 
 - One file, `mods/platformio/main.js`, a `View` class with two `props` roles: none is the panel itself, `{ "button": true }` is the tab bar button (it toggles `panel` and selects the `platformio` child of `panel-body`, and adds `"platformio"` to shared `"workspace.panels"` so the tabs mod restores it per space). `mod.json` is `{ "place": "none", "title": "PlatformIO" }`.
-- `gpui-kit`: `View`, `div`, `image`, `svg`; `herdr`: `spaces`, `panes`, `focused`, `terminals`, `exec`, `readTextFile`, `writeTextFile`, `run` (`terminal.open`, `terminal.kill`, `layout.select`, `layout.show`, `layout.hide`), `layout`, `home`, `props`, `shared`, `setShared`, `theme`, `settings`, `nextCommand`, `checking`; `gpui-base`: `v_flex`, `h_flex`, `Editor`, `EditorState`, `Popover`. Caches and preferences live in `localStorage`.
+- `gpui-kit`: `View`, `div`, `image`, `svg`; `herdr`: `spaces`, `panes`, `focused`, `terminals`, `exec`, `readTextFile`, `writeTextFile`, `run` (`terminal.open`, `terminal.kill`, `pane.split`, `pane.swap`, `layout.select`, `layout.show`, `layout.hide`), `layout`, `home`, `props`, `shared`, `setShared`, `theme`, `settings`, `nextCommand`, `checking`; `gpui-base`: `v_flex`, `h_flex`, `Editor`, `EditorState`, `Popover`. Caches and preferences live in `localStorage`.
 - Icons in the folder: `logo.svg` (the PlatformIO logo), `task.svg`, `hammer.svg`, `upload.svg`, `terminal.svg`, `trash.svg`, `refresh.svg`, `chevron-down.svg`, `chevron-right.svg`. `svg()` tints the whole icon in one color. Task icons use 2px strokes with round caps and joins, rounded corners a 2.5 radius; only the upload icon has a filled arrow and a 3px bar.
-- Programs it runs: `pio` and `/bin/sh` (the terminal wrapper only; see README).
+- Programs it runs: `pio`, and `/bin/sh` with `head` (the terminal wrapper only; see README).
 
 ## Recommended install
 
@@ -57,7 +57,8 @@ A side panel on the right, shown and hidden by a "PlatformIO" button (logo and l
 
 - `pio project metadata` is slow: it loads the environment's whole build configuration (no compiling). Bumping the cache key (`targets-v3`) makes every project fetch its targets again, and any edit to `platformio.ini` does so for that project, so do either only on purpose.
 - herdr has no INI grammar: `ini` and `toml` are unknown languages (no colours), `yaml` colours the whole file green and `properties` colours it wrongly. Leave the editor without colours.
-- Terminals are recognised by their `argv`; the `sh -c` wrapper is `argv[2]` and the task name `argv[3]`.
+- Terminals are recognised by their `argv`; the `sh -c` wrapper is `argv[2]`, the task name `argv[3]` and its title `argv[4]` (`[<title>]`). The wrapper sets the terminal title to it (`OSC 2`), which the pane header shows. It waits for Enter with `exec head -n 1`, not the shell's `read`: herdr's header names a waiting shell "sh" instead of the title.
+- A replaced task terminal hands its pane to the new one: herdr gives a closed pane's space to the pane above it, so the mod splits the old pane down, swaps the new pane above it (`pane.swap` with `target`; a swap by `direction` does not keep the size) and then kills the old terminal.
 - macOS and Linux only (the wrapper is `/bin/sh`).
 
 ## Done when
