@@ -1,5 +1,5 @@
 // PlatformIO tasks for the focused pane's project: the
-// active environment's targets, then Project and PlatformIO. A click runs the task in a terminal.
+// active environment's General, Extra Scripts, Platform and Advanced tasks, then PlatformIO. A click runs the task in a terminal.
 // With props { button: true } it draws the tab bar button that shows this panel instead.
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Popover, Editor, EditorState } from "gpui-base";
@@ -46,7 +46,7 @@ const taskOf = (terminal) => terminal.state === "live" && terminal.argv?.[2] ===
 
 export default class PlatformIO extends View {
   init(_props, cx) {
-    this.open = { env: true, "env-extra": true, extra: true, project: true, pio: true };
+    this.open = { general: true, scripts: true, platform: true, advanced: true, pio: true };
     this.envs = []; this.targets = null; this.scripts = {}; this.ports = null;
     if (checking()) return;
     if (props()?.button) {
@@ -212,25 +212,26 @@ export default class PlatformIO extends View {
   groups() {
     const env = this.env, v = this.verbose ? ["-v"] : [], port = this.port ? ["--upload-port", this.port] : [];
     const target = (...names) => ["run", "-e", env, ...names.flatMap((n) => ["-t", n]), ...v];
-    const envTasks = [], scriptTasks = [], extraTasks = [];
-    for (const t of this.targets ?? []) {
-      // PlatformIO files every AddCustomTarget under "Custom": the environment's own extra_scripts add some, the platform's builder the rest.
-      (t.group !== "Custom" ? envTasks : t.own ? scriptTasks : extraTasks).push({ id: t.name, title: t.title, args: [...target(t.name), ...port], serial: !OFFLINE.has(t.name) });
-      if (t.name === "upload") envTasks.push({ id: "upload-monitor", title: "Upload & Monitor", args: [...target("upload", "monitor"), ...port], serial: true });
-    }
+    const task = (t) => ({ id: t.name, title: t.title, args: [...target(t.name), ...port], serial: !OFFLINE.has(t.name) });
+    const upload = (this.targets ?? []).find((t) => t.name === "upload");
+    // PlatformIO files every AddCustomTarget under "Custom": the environment's own extra_scripts add some, the platform's builder the rest.
+    const scriptTasks = (this.targets ?? []).filter((t) => t.own).map(task);
+    const platformTasks = (this.targets ?? []).filter((t) => !t.own && t.name !== "upload").map(task);
     return [
-      { id: "env", title: env ? "Environment" : "No environment", tasks: envTasks, sub: { id: "env-extra", title: "Extra Scripts", tasks: scriptTasks } },
-      ...(extraTasks.length ? [{ id: "extra", title: "Custom", tasks: extraTasks }] : []),
-      { id: "project", title: "Project", tasks: !env ? [] : [
+      { id: "general", title: env ? "General" : "No environment", tasks: !env ? [] : [
         { id: "build", title: "Build", icon: "hammer", color: "ansi3", args: target() },
-        { id: "debug", title: "Debug", icon: "bug", color: "ansi2", args: ["debug", "-e", env, ...v] },
+        ...(upload ? [{ ...task(upload), title: "Build & Upload" },
+          { id: "upload-monitor", title: "Build & Upload & Monitor", args: [...target("upload", "monitor"), ...port, ...(this.port ? ["--monitor-port", this.port] : [])], serial: true }] : []),
+        { id: "monitor", title: "Serial Monitor", args: ["device", "monitor", "-e", env, ...(this.port ? ["--port", this.port] : [])], serial: true },
         { id: "clean", title: "Clean", icon: "broom", color: "ansi6", args: target("clean") }] },
+      ...(scriptTasks.length ? [{ id: "scripts", title: "Extra Scripts", tasks: scriptTasks }] : []),
+      ...(platformTasks.length ? [{ id: "platform", title: "Platform", tasks: platformTasks }] : []),
+      ...(!env ? [] : [{ id: "advanced", title: "Advanced", tasks: [
+        { id: "check", title: "Analyze Code", args: ["check", "-e", env, ...v] },
+        { id: "update", title: "Update Packages", args: ["pkg", "update", "-e", env] }] }]),
       { id: "pio", title: "PlatformIO", tasks: [
         { id: "home", title: "PlatformIO Home", args: ["home"] },
-        { id: "update", title: "Install Updates", args: ["pkg", "update"] },
-        ...(!env ? [] : [
-          { id: "monitor", title: "Serial Monitor", args: ["device", "monitor", "-e", env, ...(this.port ? ["--port", this.port] : [])], serial: true },
-          { id: "check", title: "Analyze Code", args: ["check", "-e", env, ...v] }])] }];
+        { id: "upgrade", title: "Upgrade PlatformIO", args: ["upgrade"] }] }];
   }
 
   // One output terminal at a time, a task rerun replaces it; a monitor stays until a task needs its port.
@@ -310,16 +311,7 @@ export default class PlatformIO extends View {
         .child(svg(`mods/platformio/${task.icon ?? "task"}.svg`).size(12).flex_none().text_color(live.has(termName(task)) ? t.working : t[task.color] ?? t.muted))
         .child(div().flex_1().min_w(0).truncate().child(task.title));
       for (const task of g.tasks) rows.push(taskRow(task, 28));
-      // A folder inside the group, for what the environment's own scripts add.
-      if (g.sub?.tasks.length) {
-        const subOpen = this.open[g.sub.id];
-        rows.push(h_flex().id(`pio-group-${g.sub.id}`).h(26).flex_none().pl(24).pr(8).gap(8).items_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
-          .on_click((_e, cx) => { this.open[g.sub.id] = !subOpen; cx.notify(); })
-          .child(svg(`mods/platformio/chevron-${subOpen ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim))
-          .child(div().flex_1().min_w(0).truncate().child(`[${g.sub.title}]`)));
-        if (subOpen) for (const task of g.sub.tasks) rows.push(taskRow(task, 48));
-      }
-      if (g.id === "env" && this.loading) rows.push(div().h(26).flex_none().pl(28).flex().items_center().text_size(12).text_color(t.dim).child("Loading targets…"));
+      if (g.id === "general" && this.loading) rows.push(div().h(26).flex_none().pl(28).flex().items_center().text_size(12).text_color(t.dim).child("Loading targets…"));
     }
     const viewing = Boolean(this.code);
     const note = this.saveError ?? (this.leaving ? "Unsaved changes: click ← again to discard" : this.stale ? "platformio.ini changed on disk" : null);

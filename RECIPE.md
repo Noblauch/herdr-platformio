@@ -10,14 +10,15 @@ A mod pane, opened as a tab (`tab.new {mod: "platformio"}`). Top to bottom:
 
 - **Header, 42px:** the title "PlatformIO" and the project folder's name (dimmed, truncated), then the "Verbose" toggle. While `platformio.ini` is open the header shows a back arrow, "platformio.ini", a "●" when there are unsaved changes, and a "Save" button.
 - **Tree, scrolling:** first the `platformio.ini` row (a click opens the editor), a reload icon right next to it, and on the right "Environment: <env>", a dropdown to switch environments (a plain label when there is only one; when the row is too narrow its start is clipped, so the end of the name and the arrow stay visible). Then groups with their titles in square brackets, each foldable (open by default, with chevrons):
-  - `[Environment]`: the active environment's platform targets, in the order `pio` reports them. A sub-folder `[Extra Scripts]` holds the targets the environment's own `extra_scripts` add.
-  - `[Custom]`: the other targets whose group is `Custom` (they come from the platform package).
-  - `[Project]`: Build, Debug, Clean.
-  - `[PlatformIO]`: PlatformIO Home, Install Updates, Serial Monitor, Analyze Code.
-  - `[Extra Scripts]` and `[Custom]` show only when they have entries.
-  - A `platformio.ini` row opens the file in the editor; an "Upload & Monitor" row follows `upload`.
+  - `[General]`: Build, Build & Upload, Build & Upload & Monitor, Serial Monitor, Clean.
+  - `[Extra Scripts]`: the targets the active environment's own `extra_scripts` add.
+  - `[Platform]`: every other target of the environment, in the order `pio` reports them (platform targets, then the platform package's `Custom` targets).
+  - `[Advanced]`: Analyze Code, Update Packages.
+  - `[PlatformIO]`: PlatformIO Home, Upgrade PlatformIO.
+  - `[Extra Scripts]` and `[Platform]` show only when they have entries.
+  - A `platformio.ini` row opens the file in the editor.
 - **Footer, 36px:** "Upload port:" and a dropdown of the connected serial ports (`Auto` by default), read with `pio device list` each time it opens.
-- Each task has a 12px icon in the theme's `muted` color: a triangle by default, a hammer (`ansi3`) for Build, a bug (`ansi2`) for Debug, a broom (`ansi6`) for Clean. The PlatformIO logo sits in the header.
+- Each task has a 12px icon in the theme's `muted` color: a triangle by default, a hammer (`ansi3`) for Build, a broom (`ansi6`) for Clean. The PlatformIO logo sits in the header.
 
 ## How it behaves
 
@@ -25,7 +26,7 @@ A mod pane, opened as a tab (`tab.new {mod: "platformio"}`). Top to bottom:
 - **Environment:** the saved one, else `default_envs`, else the first. The choice, the port and "Verbose" are remembered per project.
 - **Targets:** from `pio project metadata -e <env> --json-output`, which can take 15 to 45 seconds. The result is kept per project and environment (in `localStorage`) and fetched again only when `platformio.ini` changes or "Reload" is pressed. A timer checks every 10 seconds whether the folder or file changed.
 - **Run a task:** a click opens a terminal under the focused pane (a new tab when no pane has focus) and runs the command; the task's icon turns the `working` color while it runs. A new task closes the previous output terminal; a monitor stays open until a task needs the serial port. The terminal stays after the program ends until Enter is pressed.
-- **Commands:** targets run `pio run -e <env> -t <target>`; Upload & Monitor is `-t upload -t monitor`; Build `pio run -e <env>`; Clean `-t clean`; Debug `pio debug -e <env>`; Home `pio home`; Update `pio pkg update`; Serial Monitor `pio device monitor -e <env>`; Analyze Code `pio check -e <env>`. "Verbose" adds `-v`, a chosen port adds `--upload-port <port>` (`--port` for the monitor).
+- **Commands:** targets run `pio run -e <env> -t <target>`; Build `pio run -e <env>`; Build & Upload `-t upload`; Build & Upload & Monitor `-t upload -t monitor`; Clean `-t clean`; Serial Monitor `pio device monitor -e <env>`; Analyze Code `pio check -e <env>`; Update Packages `pio pkg update -e <env>`; Home `pio home`; Upgrade PlatformIO `pio upgrade`. "Verbose" adds `-v`, a chosen port adds `--upload-port <port>` (Build & Upload & Monitor also `--monitor-port <port>`, Serial Monitor `--port <port>`).
 - **Editor:** a click on the `platformio.ini` row opens the file in herdr's `Editor` (editable, line numbers, no syntax colours). "Save" writes the file with `writeTextFile(path, text, expected)`, which fails when the file changed on disk meanwhile, then reloads the targets. If the file changes on disk while there are unsaved edits, nothing is overwritten: the header says "platformio.ini changed on disk" and shows "Reload" (discards the edits). The back arrow asks once ("click ← again to discard") when there are unsaved changes. Saving works on this computer only.
 - Groups and sub-folders fold and unfold by click.
 
