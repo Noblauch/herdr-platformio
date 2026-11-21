@@ -33,7 +33,7 @@ A side panel on the right, shown and hidden by a "PlatformIO" button (logo and l
 ## Built from
 
 - One file, `mods/platformio/main.js`, a `View` class with two `props` roles: none is the panel itself, `{ "button": true }` is the tab bar button (it toggles `panel` and selects the `platformio` child of `panel-body`, and adds `"platformio"` to shared `"workspace.panels"` so the tabs mod restores it per space). `mod.json` is `{ "place": "none", "title": "PlatformIO" }`.
-- `herdr`: `spaces`, `panes`, `focused`, `terminals`, `exec`, `readTextFile`, `writeTextFile`, `run` (`terminal.open`, `terminal.kill`), `theme`, `settings`, `nextCommand`, `checking`; `gpui-base`: `Editor`, `EditorState`, `Popover`. Caches and preferences live in `localStorage`.
+- `herdr`: `spaces`, `panes`, `focused`, `terminals`, `exec`, `readTextFile`, `writeTextFile`, `run` (`terminal.open`, `terminal.kill`, `layout.select`, `layout.show`, `layout.hide`), `layout`, `home`, `props`, `shared`, `setShared`, `theme`, `settings`, `nextCommand`, `checking`; `gpui-base`: `Editor`, `EditorState`, `Popover`. Caches and preferences live in `localStorage`.
 - Icons in the folder: `logo.svg` (the PlatformIO logo), `task.svg`, `hammer.svg`, `upload.svg`, `terminal.svg`, `trash.svg`, `refresh.svg`, `chevron-down.svg`, `chevron-right.svg`. `svg()` tints the whole icon in one color. Task icons use 2px strokes with round caps and joins, rounded corners a 2.5 radius; only the upload icon has a filled arrow and a 3px bar.
 - Programs it runs: `pio` and `/bin/sh` (the terminal wrapper only; see README).
 
@@ -58,7 +58,6 @@ A side panel on the right, shown and hidden by a "PlatformIO" button (logo and l
 - `pio project metadata` is slow: it loads the environment's whole build configuration (no compiling). Do not start it for an environment you do not want to touch; changing the cache key or `platformio.ini` starts it again for the saved environment.
 - herdr has no INI grammar: `ini` and `toml` are unknown languages (no colours), `yaml` colours the whole file green and `properties` colours it wrongly. Leave the editor without colours.
 - Terminals are recognised by their `argv`; the `sh -c` wrapper is `argv[2]` and the task name `argv[3]`.
-- An icon cached by herdr keeps its first image per path: restart herdr after replacing one.
 - macOS and Linux only; `/bin/sh` is required.
 
 ## Done when
