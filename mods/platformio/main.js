@@ -30,7 +30,7 @@ const OFFLINE = new Set(["menuconfig", "buildfs", "size", "uploadfsota", "metric
 // Tasks that keep the serial port open after they start.
 const HOLDING = new Set(["pio-monitor", "pio-upload-monitor"]);
 
-// The editor has no INI grammar (like toml in the files mod); this is the closest one.
+// The editor has no INI grammar, so "ini" shows plain text; swap the name here once herdr adds one.
 const INI_LANGUAGE = "ini";
 
 const load = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };

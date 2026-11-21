@@ -41,9 +41,9 @@ A side panel on the right, shown and hidden by a "PlatformIO" button (logo and l
 
 1. Copy `mods/platformio/` to `~/.config/herdr-app/mods/platformio/` and run `herdr-app check` on it. This alone changes nothing on screen: `"place": "none"` docks nothing.
 2. **Ask the person first:** "Add a PlatformIO button next to Files and Changes? This changes your layout." Without a yes, stop here and point to the tab route (`herdr-app do tab.new --mod platformio --name PlatformIO`).
-3. Find the shown layout: `herdr-app status` prints it as `"layout"`; the file is `layouts/<name>.json`. herdr's own layouts (`main`, `terminals`, `win98`) are read-only and restored on every start, so never edit them. If the person uses `main`, run `herdr-app do layout.clone '{"name":"main","as":"main-copy"}'` (pick a free name; it switches to the clone) and tell them the clone no longer receives herdr's updates to `main`. A layout that is already the person's own (a clone) is edited in place.
-4. In that layout, change two nodes and nothing else:
-   - **Tab bar:** replace the block `{ "id": "tabs", ..., "size": { "px": 42 }, "window_drag": true, "content": { "mod": "tabs" } }` with a row that holds it and the button:
+3. Find the shown layout: `herdr-app status` prints it as `"layout"`; the file is `layouts/<name>.json`. herdr's own layouts (`main`, `terminals`, `win98`) are read-only and restored on every start, so never edit them. If the person uses `main`, run `herdr-app do layout.clone '{"name":"main"}'` (herdr names it `main-copy`; if that name is taken, add `"as"` with a free name; it switches to the clone) and tell them the clone no longer receives herdr's updates to `main`. A layout that is already the person's own (a clone) is edited in place; no new layout is made.
+4. If the layout already has a block with `"mod": "platformio"` (an earlier install), leave it as it is and skip to step 5. Otherwise change two nodes and nothing else:
+   - **Tab bar:** replace the block whose `content` is `{ "mod": "tabs" }` (in `main` it carries `"size": { "px": 42 }` and `"window_drag": true`) with a row that holds it and the button; the row takes over the block's size:
      ```json
      { "id": "tabs-row", "type": "row", "size": { "px": 42 }, "resizable": false, "children": [
        { "id": "tabs", "type": "block", "window_drag": true, "content": { "mod": "tabs" } },

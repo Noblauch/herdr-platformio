@@ -39,8 +39,17 @@ must hold the `platformio.ini`. It does not search parent or sub folders. Close 
 
 - Programs: `pio` (or `platformio`, also found in `~/.platformio/penv/bin`) for everything PlatformIO does, and
   `/bin/sh` only as a wrapper that keeps a task's terminal open until Enter.
+- Without a click: whenever the focused folder holds a `platformio.ini`, the mod runs `pio --version`,
+  `pio project config` and `pio project metadata -e <env>` (slow, up to a few minutes; cached per environment until
+  `platformio.ini` changes). A timer checks every 10 seconds whether the folder or file changed.
+  `pio device list` runs each time the port dropdown opens. Everything else runs only when you click a task.
 - Files: it reads `platformio.ini` and the `extra_scripts` files named in it, and writes `platformio.ini` only when you press Save.
-- No network access of its own; it keeps small caches (targets, chosen environment and port) in the mod's `localStorage`.
+- Network: the mod makes no requests of its own, but `pio` does: Update Packages, Upgrade PlatformIO and
+  PlatformIO Home go online, and `pio project metadata` may download a missing platform or toolchain the first time.
+- State: small caches (targets, chosen environment, port, Verbose) in the mod's `localStorage`. The tab bar button
+  adds `platformio` to herdr's shared `workspace.panels` list, so the tab bar remembers the panel per space.
+- Remote spaces: in a space on another machine, `pio` runs and `platformio.ini` is read on that machine;
+  saving the file works on this computer only.
 
 ## Notes
 
