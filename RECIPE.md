@@ -1,0 +1,54 @@
+# PlatformIO
+
+A side panel for PlatformIO in herdr: the targets of the active environment, the groups Project and PlatformIO, and an editor for `platformio.ini`. A click on a task runs `pio` in a herdr terminal.
+
+![PlatformIO](preview.png)
+
+## What you see
+
+A mod pane, opened as a tab (`tab.new {mod: "platformio"}`). Top to bottom:
+
+- **Header, 42px:** the title "PlatformIO" and the project folder's name (dimmed, truncated), then the toggles "Verbose" and "Reload". While `platformio.ini` is open the header shows a back arrow, "platformio.ini", a "●" when there are unsaved changes, and a "Save" button.
+- **Tree, scrolling:** groups with their titles in square brackets, each foldable (open by default, with chevrons):
+  - `[Environment: <env>]`: the environment's platform targets, in the order `pio` reports them. The environment name is a dropdown (a popover) to switch environments. A sub-folder `[Extra Scripts]` holds the targets the environment's own `extra_scripts` add.
+  - `[Custom]`: the other targets whose group is `Custom` (they come from the platform package).
+  - `[Project]`: Build, Debug, Clean.
+  - `[PlatformIO]`: PlatformIO Home, Install Updates, Serial Monitor, Analyze Code.
+  - `[Extra Scripts]` and `[Custom]` show only when they have entries.
+  - A `platformio.ini` row opens the file in the editor; an "Upload & Monitor" row follows `upload`.
+- **Footer, 36px:** "Upload port:" and a button that cycles through the serial ports (`Auto` by default).
+- Each task has a 12px icon in the theme's `muted` color: a triangle by default, a hammer (`ansi3`) for Build, a bug (`ansi2`) for Debug, a broom (`ansi6`) for Clean. The PlatformIO logo sits in the header.
+
+## How it behaves
+
+- **Project:** the focused pane's folder (else the space's folder), and only that folder: it counts as a project when it holds a `platformio.ini` itself. There is no search up or down. Without one the panel says "No platformio.ini in this folder".
+- **Environment:** the saved one, else `default_envs`, else the first. The choice, the port and "Verbose" are remembered per project.
+- **Targets:** from `pio project metadata -e <env> --json-output`, which can take 15 to 45 seconds. The result is kept per project and environment (in `localStorage`) and fetched again only when `platformio.ini` changes or "Reload" is pressed. A timer checks every 10 seconds whether the folder or file changed.
+- **Run a task:** a click opens a terminal under the focused pane (a new tab when no pane has focus) and runs the command; the task's icon turns the `working` color while it runs. A new task closes the previous output terminal; a monitor stays open until a task needs the serial port. The terminal stays after the program ends until Enter is pressed.
+- **Commands:** targets run `pio run -e <env> -t <target>`; Upload & Monitor is `-t upload -t monitor`; Build `pio run -e <env>`; Clean `-t clean`; Debug `pio debug -e <env>`; Home `pio home`; Update `pio pkg update`; Serial Monitor `pio device monitor -e <env>`; Analyze Code `pio check -e <env>`. "Verbose" adds `-v`, a chosen port adds `--upload-port <port>` (`--port` for the monitor).
+- **Editor:** a click on the `platformio.ini` row opens the file in herdr's `Editor` (editable, line numbers, no syntax colours). "Save" writes the file with `writeTextFile(path, text, expected)`, which fails when the file changed on disk meanwhile, then reloads the targets. If the file changes on disk while there are unsaved edits, nothing is overwritten: the header says "platformio.ini changed on disk" and shows "Reload" (discards the edits). The back arrow asks once ("click ← again to discard") when there are unsaved changes. Saving works on this computer only.
+- Groups and sub-folders fold and unfold by click.
+
+## Built from
+
+- One file, `mods/platformio/main.js`, a `View` class; `mod.json` is `{ "place": "none", "title": "PlatformIO" }`.
+- `herdr`: `spaces`, `panes`, `focused`, `terminals`, `exec`, `readTextFile`, `writeTextFile`, `run` (`terminal.open`), `theme`, `checking`; `gpui-base`: `Editor`, `EditorState`, `Popover`.
+- Icons in the folder: `logo.svg` (the PlatformIO logo), `task.svg`, `hammer.svg`, `bug.svg`, `broom.svg`, `chevron-down.svg`, `chevron-right.svg`. `svg()` tints the whole icon in one color.
+- Programs it runs: `pio` and `/bin/sh` (the terminal wrapper only; see README).
+
+## Watch out
+
+- `pio project metadata` is slow and builds the environment's configuration. Do not start it for an environment you do not want to touch; changing the cache key or `platformio.ini` starts it again for the saved environment.
+- herdr has no INI grammar: `ini` and `toml` are unknown languages (no colours), `yaml` colours the whole file green and `properties` colours it wrongly. Leave the editor without colours.
+- Terminals are recognised by their `argv`; the `sh -c` wrapper is `argv[2]` and the task name `argv[3]`.
+- An icon cached by herdr keeps its first image per path: restart herdr after replacing one.
+- The panel reads the project from the focused terminal's folder, falling back to the space's folder, so that folder must itself hold the `platformio.ini` (no search in parent or sub folders).
+- macOS and Linux only; `/bin/sh` is required.
+
+## Done when
+
+- `herdr-app check ~/.config/herdr-app/mods/platformio` passes and `herdr-app status` shows no errors.
+- In a space whose folder holds a `platformio.ini`, the tab shows the tree with Project and PlatformIO.
+- Clicking Build runs `pio run -e <env>` in a terminal under the pane and the terminal stays until Enter.
+- Opening `platformio.ini`, changing a line and pressing Save writes the file, and the "●" disappears.
+- Changing the file on disk while there are unsaved edits shows "platformio.ini changed on disk" and does not overwrite the edits.
