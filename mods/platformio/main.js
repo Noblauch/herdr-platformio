@@ -5,6 +5,8 @@ import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Popover, Editor, EditorState } from "gpui-base";
 import { spaces, panes, focused, terminals, layout, home, exec, readTextFile, writeTextFile, run, theme, settings, props, shared, setShared, nextCommand, checking } from "herdr";
 
+// Spacing is a 4px grid: 4 between small controls, 8 inside rows and between an icon and its label,
+// 16 from the panel edge to the text (8 around the tree plus 8 inside a row).
 function location() {
   const space = spaces().find((s) => s.active), f = focused();
   const pane = f?.pane ? panes().find((p) => p.pane === f.pane) : null;
@@ -45,7 +47,7 @@ const taskOf = (terminal) => terminal.state === "live" && terminal.argv?.[2] ===
 export default class PlatformIO extends View {
   init(_props, cx) {
     this.open = { env: true, "env-extra": true, extra: true, project: true, pio: true };
-    this.envs = []; this.targets = null; this.scripts = {};
+    this.envs = []; this.targets = null; this.scripts = {}; this.ports = null;
     if (checking()) return;
     if (props()?.button) {
       // The tab bar restores each space's side panel only from this list.
@@ -187,18 +189,24 @@ export default class PlatformIO extends View {
     cx.notify();
   }
 
-  // Auto, then each connected serial device in turn.
-  nextPort(cx) {
-    if (!this.pio || !this.dir) return;
+  // Lists the connected serial devices each time the port menu opens.
+  listPorts(cx) {
+    this.ports = null;
+    if (!this.pio || !this.dir) { this.ports = []; return; }
     cx.spawn(async (cx) => {
       try {
         const r = await exec(this.pio, ["device", "list", "--json-output"], { on: this.on });
-        const choices = [null, ...JSON.parse(r.stdout).filter((d) => d.hwid && d.hwid !== "n/a").map((d) => d.port)];
-        this.port = choices[(choices.indexOf(this.port) + 1) % choices.length];
-        this.savePrefs();
-      } catch (e) { this.error = String(e?.message ?? e); }
+        this.ports = JSON.parse(r.stdout).filter((d) => d.hwid && d.hwid !== "n/a").map((d) => d.port);
+      } catch (e) { this.ports = []; this.error = String(e?.message ?? e); }
       finally { cx.notify(); }
     });
+  }
+
+  selectPort(port, cx) {
+    this.pickingPort = false;
+    this.port = port;
+    this.savePrefs();
+    cx.notify();
   }
 
   groups() {
@@ -211,7 +219,7 @@ export default class PlatformIO extends View {
       if (t.name === "upload") envTasks.push({ id: "upload-monitor", title: "Upload & Monitor", args: [...target("upload", "monitor"), ...port], serial: true });
     }
     return [
-      { id: "env", title: env ? `Environment: ${env}` : "No environment", tasks: envTasks, sub: { id: "env-extra", title: "Extra Scripts", tasks: scriptTasks } },
+      { id: "env", title: env ? "Environment" : "No environment", tasks: envTasks, sub: { id: "env-extra", title: "Extra Scripts", tasks: scriptTasks } },
       ...(extraTasks.length ? [{ id: "extra", title: "Custom", tasks: extraTasks }] : []),
       { id: "project", title: "Project", tasks: !env ? [] : [
         { id: "build", title: "Build", icon: "hammer", color: "ansi3", args: target() },
@@ -239,8 +247,8 @@ export default class PlatformIO extends View {
   renderButton(t) {
     const root = layout(), panel = find(root, "panel"), body = find(root, "panel-body");
     const on = panel && !panel.hidden && body?.active === "platformio";
-    return h_flex().size_full().pr(10).items_center().bg(t.chrome).border_b(1).border_color(t.border)
-      .child(h_flex().id("panel-platformio").h(26).px(8).gap(5).flex_none().items_center().rounded(6)
+    return h_flex().size_full().pr(8).items_center().bg(t.chrome).border_b(1).border_color(t.border)
+      .child(h_flex().id("panel-platformio").h(26).px(8).gap(4).flex_none().items_center().rounded(6)
         .text_size(12).bg(on ? t.selected : t.chrome).text_color(on ? t.foreground : t.muted).hover((s) => s.bg(t.hover))
         .on_click(() => {
           if (on) run("layout.hide", { id: "panel" });
@@ -253,52 +261,71 @@ export default class PlatformIO extends View {
     if (props()?.button) return this.renderButton(t);
     if (!checking() && location().cwd !== this.cwd) this.refresh(cx);
     const live = new Set(terminals().map(taskOf).filter(Boolean));
-    const tool = (id, label, on, action) => div().id(id).h(24).px(7).flex().items_center().rounded(6).text_size(12).cursor_pointer()
-      .bg(on ? t.selected : t.background).text_color(on ? t.foreground : t.muted).hover((s) => s.bg(t.hover)).on_click(action).child(label);
+    const tool = (id, label, on, action, tip) => div().id(id).h(24).px(8).flex().items_center().rounded(6).text_size(12).cursor_pointer()
+      .bg(on ? t.selected : t.background).text_color(on ? t.foreground : t.muted).hover((s) => s.bg(t.hover)).when(Boolean(tip), (el) => el.tooltip(tip)).on_click(action).child(label);
     const rows = [];
-    if (this.dir && this.ini != null) rows.push(h_flex().id("pio-ini").h(28).flex_none().px(8).gap(7).items_center().rounded(7).cursor_pointer().hover((s) => s.bg(t.hover))
-      .on_click((_e, cx) => { this.view(this.ini); cx.notify(); })
-      .child(image("mods/platformio/logo.svg").size(14).flex_none())
-      .child(div().flex_1().min_w(0).truncate().child("platformio.ini")));
+    // A small button reading "<prefix><label>"; only the label shrinks, and a row clips its start.
+    const pill = (prefix, label, picking, chevron) => h_flex().h(24).px(8).gap(4).items_center().rounded(6).text_size(12).min_w(0)
+      .text_color(picking ? t.foreground : t.muted)
+      .when(chevron, (el) => el.bg(picking ? t.selected : t.background).cursor_pointer().hover((s) => s.bg(t.hover)))
+      .child(div().flex_none().child(prefix)).child(div().min_w(0).truncate().child(label))
+      .when(chevron, (el) => el.child(svg("mods/platformio/chevron-down.svg").size(11).flex_none()));
+    const menu = (id, prefix, label, picking, onOpen, items, empty) => Popover.new(id).open(Boolean(picking))
+      .on_open_change(onOpen)
+      .trigger(h_flex().id(`${id}-trigger`).tooltip(`${prefix}${label}`).child(pill(prefix, label, picking, true)))
+      .content(v_flex().id(`${id}-list`).min_w(200).max_h(320).overflow_y_scrollbar().p(4).rounded(8).bg(t.popover).border_1().border_color(t.border).shadow_lg().text_size(13)
+        .children(items.map((it) => h_flex().id(`${id}-${it.value ?? "auto"}`).h(28).flex_none().px(8).gap(8).items_center().rounded(6).cursor_pointer()
+          .when(it.on, (row) => row.bg(t.selected)).hover((s) => s.bg(t.hover))
+          .on_click((_e, cx) => it.pick(cx))
+          .child(div().flex_1().min_w(0).truncate().child(it.label))))
+        .when(Boolean(empty), (el) => el.child(div().h(28).px(8).flex().items_center().text_size(12).text_color(t.dim).child(empty))));
+    const envMenu = () => menu("pio-env-menu", "Environment: ", this.env, this.picking, (open, cx) => { this.picking = open; cx.notify(); },
+      this.envs.map((env) => ({ value: env, label: env, on: env === this.env, pick: (cx) => this.selectEnv(env, cx) })));
+    const portMenu = () => menu("pio-port-menu", "", this.port ?? "Auto", this.pickingPort,
+      (open, cx) => { this.pickingPort = open; if (open) this.listPorts(cx); cx.notify(); },
+      [{ value: null, label: "Auto", on: !this.port, pick: (cx) => this.selectPort(null, cx) },
+        ...(this.ports ?? []).map((p) => ({ value: p, label: p, on: p === this.port, pick: (cx) => this.selectPort(p, cx) }))],
+      this.ports == null ? "Searching…" : this.ports.length ? null : "No devices found");
+    if (this.dir && this.ini != null) rows.push(h_flex().h(28).flex_none().items_center()
+      .child(h_flex().id("pio-ini").flex_none().h_full().pl(8).pr(4).gap(8).items_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
+        .on_click((_e, cx) => { this.view(this.ini); cx.notify(); })
+        .child(image("mods/platformio/logo.svg").size(14).flex_none())
+        .child(div().child("platformio.ini")))
+      .child(div().id("pio-reload").size(24).flex_none().flex().items_center().justify_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
+        .tooltip("Reload targets from platformio.ini").on_click((_e, cx) => { this.refresh(cx, true); cx.notify(); })
+        .child(svg("mods/platformio/refresh.svg").size(14).text_color(this.loading || this.busy ? t.working : t.muted)))
+      .child(h_flex().flex_1().min_w(0).overflow_hidden().justify_end()
+        .when(Boolean(this.env) && this.envs.length > 1, (el) => el.child(envMenu()))
+        .when(Boolean(this.env) && this.envs.length === 1, (el) => el.child(h_flex().id("pio-env-label").tooltip(`Environment: ${this.env}`).child(pill("Environment: ", this.env, false, false))))));
     for (const g of this.dir ? this.groups() : []) {
       const open = this.open[g.id];
-      rows.push(h_flex().h(28).flex_none().pr(6).gap(4).items_center()
-        .child(h_flex().id(`pio-group-${g.id}`).flex_1().min_w(0).h_full().px(8).gap(7).items_center().rounded(7).cursor_pointer().hover((s) => s.bg(t.hover))
+      rows.push(h_flex().h(28).flex_none().items_center()
+        .child(h_flex().id(`pio-group-${g.id}`).flex_1().min_w(0).h_full().px(8).gap(8).items_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
           .on_click((_e, cx) => { this.open[g.id] = !open; cx.notify(); })
           .child(svg(`mods/platformio/chevron-${open ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim))
-          .child(div().flex_1().min_w(0).truncate().child(`[${g.title}]`)))
-        .when(g.id === "env" && this.envs.length > 1, (el) => el.child(Popover.new("pio-env-menu").open(Boolean(this.picking))
-          .on_open_change((open, cx) => { this.picking = open; cx.notify(); })
-          .trigger(h_flex().h(24).px(7).gap(4).items_center().rounded(6).text_size(12).cursor_pointer()
-            .bg(this.picking ? t.selected : t.background).text_color(this.picking ? t.foreground : t.muted).hover((s) => s.bg(t.hover))
-            .child("Switch").child(svg("mods/platformio/chevron-down.svg").size(11)))
-          .content(v_flex().id("pio-env-list").min_w(200).max_h(320).overflow_y_scrollbar().p(4).rounded(8).bg(t.popover).border_1().border_color(t.border).shadow_lg().text_size(13)
-            .children(this.envs.map((env) => h_flex().id(`pio-env-${env}`).h(28).flex_none().px(8).gap(8).items_center().rounded(6).cursor_pointer()
-              .when(env === this.env, (row) => row.bg(t.selected)).hover((s) => s.bg(t.hover))
-              .on_click((_e, cx) => this.selectEnv(env, cx))
-              .child(div().flex_1().min_w(0).truncate().child(env))))))));
+          .child(div().flex_1().min_w(0).truncate().child(`[${g.title}]`))));
       if (!open) continue;
-      const taskRow = (task, pl) => h_flex().id(`pio-task-${task.id}`).h(26).flex_none().pl(pl).pr(8).gap(8).items_center().rounded(7).cursor_pointer().hover((s) => s.bg(t.hover))
+      const taskRow = (task, pl) => h_flex().id(`pio-task-${task.id}`).h(26).flex_none().pl(pl).pr(8).gap(8).items_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
         .on_click(() => this.start(task))
         .child(svg(`mods/platformio/${task.icon ?? "task"}.svg`).size(12).flex_none().text_color(live.has(termName(task)) ? t.working : t[task.color] ?? t.muted))
         .child(div().flex_1().min_w(0).truncate().child(task.title));
-      for (const task of g.tasks) rows.push(taskRow(task, 27));
+      for (const task of g.tasks) rows.push(taskRow(task, 28));
       // A folder inside the group, for what the environment's own scripts add.
       if (g.sub?.tasks.length) {
         const subOpen = this.open[g.sub.id];
-        rows.push(h_flex().id(`pio-group-${g.sub.id}`).h(26).flex_none().pl(23).pr(8).gap(7).items_center().rounded(7).cursor_pointer().hover((s) => s.bg(t.hover))
+        rows.push(h_flex().id(`pio-group-${g.sub.id}`).h(26).flex_none().pl(24).pr(8).gap(8).items_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
           .on_click((_e, cx) => { this.open[g.sub.id] = !subOpen; cx.notify(); })
           .child(svg(`mods/platformio/chevron-${subOpen ? "down" : "right"}.svg`).size(12).flex_none().text_color(t.dim))
           .child(div().flex_1().min_w(0).truncate().child(`[${g.sub.title}]`)));
-        if (subOpen) for (const task of g.sub.tasks) rows.push(taskRow(task, 46));
+        if (subOpen) for (const task of g.sub.tasks) rows.push(taskRow(task, 48));
       }
-      if (g.id === "env" && this.loading) rows.push(div().h(26).flex_none().pl(27).flex().items_center().text_size(12).text_color(t.dim).child("Loading targets…"));
+      if (g.id === "env" && this.loading) rows.push(div().h(26).flex_none().pl(28).flex().items_center().text_size(12).text_color(t.dim).child("Loading targets…"));
     }
     const viewing = Boolean(this.code);
     const note = this.saveError ?? (this.leaving ? "Unsaved changes: click ← again to discard" : this.stale ? "platformio.ini changed on disk" : null);
     const empty = this.error || (this.dir ? null : this.busy ? "Looking for a PlatformIO project…" : "No platformio.ini in this folder");
     return v_flex().id("platformio").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
-      .child(h_flex().h(42).flex_none().px(14).gap(6).items_center().border_b(1).border_color(t.border)
+      .child(h_flex().h(42).flex_none().px(16).gap(8).items_center().border_b(1).border_color(t.border)
         .when(viewing, (el) => el.child(div().id("pio-back").w(20).cursor_pointer().text_color(t.muted).on_click((_e, cx) => this.leave(cx)).child("←")))
         .child(div().font_semibold().child(viewing ? "platformio.ini" : "PlatformIO"))
         .when(this.dirty, (el) => el.child(div().text_color(t.blocked).child("●")))
@@ -306,13 +333,12 @@ export default class PlatformIO extends View {
         .when(viewing && this.stale, (el) => el.child(tool("pio-ini-reload", "Reload", false, (_e, cx) => this.reload(cx))))
         .when(viewing && this.dirty, (el) => el.child(tool("pio-ini-save", this.saving ? "Saving…" : "Save", true, (_e, cx) => this.save(cx))))
         .when(!viewing, (el) => el
-          .child(tool("pio-verbose", "Verbose", this.verbose, (_e, cx) => { this.verbose = !this.verbose; if (this.dir) this.savePrefs(); cx.notify(); }))
-          .child(tool("pio-reload", "Reload", false, (_e, cx) => { this.refresh(cx, true); cx.notify(); }))))
+          .child(tool("pio-verbose", "Verbose", this.verbose, (_e, cx) => { this.verbose = !this.verbose; if (this.dir) this.savePrefs(); cx.notify(); }, "Add -v to the pio commands for more detailed output"))))
       .when(viewing, (el) => el.child(div().id("pio-ini").flex_1().min_h(0)        .child(Editor.new(this.code))))
-      .when(!viewing, (el) => el.child(v_flex().id("pio-tree").flex_1().min_h(0).overflow_y_scrollbar().p(6).children(rows)
+      .when(!viewing, (el) => el.child(v_flex().id("pio-tree").flex_1().min_h(0).overflow_y_scrollbar().p(8).children(rows)
         .when(Boolean(empty), (el) => el.child(div().p(8).text_size(12).text_color(this.error ? t.ansi1 : t.dim).child(empty)))))
-      .when(Boolean(this.dir) && !viewing, (el) => el.child(h_flex().h(36).flex_none().px(14).gap(8).items_center().border_t(1).border_color(t.border).text_size(12)
+      .when(Boolean(this.dir) && !viewing, (el) => el.child(h_flex().h(36).flex_none().px(16).gap(8).items_center().border_t(1).border_color(t.border).text_size(12)
         .child(div().text_color(t.muted).child("Upload port:"))
-        .child(tool("pio-port", this.port ?? "Auto", Boolean(this.port), (_e, cx) => this.nextPort(cx)))));
+        .child(portMenu())));
   }
 }

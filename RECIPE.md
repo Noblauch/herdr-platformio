@@ -8,15 +8,15 @@ A side panel for PlatformIO in herdr: the targets of the active environment, the
 
 A mod pane, opened as a tab (`tab.new {mod: "platformio"}`). Top to bottom:
 
-- **Header, 42px:** the title "PlatformIO" and the project folder's name (dimmed, truncated), then the toggles "Verbose" and "Reload". While `platformio.ini` is open the header shows a back arrow, "platformio.ini", a "●" when there are unsaved changes, and a "Save" button.
-- **Tree, scrolling:** groups with their titles in square brackets, each foldable (open by default, with chevrons):
-  - `[Environment: <env>]`: the environment's platform targets, in the order `pio` reports them. The environment name is a dropdown (a popover) to switch environments. A sub-folder `[Extra Scripts]` holds the targets the environment's own `extra_scripts` add.
+- **Header, 42px:** the title "PlatformIO" and the project folder's name (dimmed, truncated), then the "Verbose" toggle. While `platformio.ini` is open the header shows a back arrow, "platformio.ini", a "●" when there are unsaved changes, and a "Save" button.
+- **Tree, scrolling:** first the `platformio.ini` row (a click opens the editor), a reload icon right next to it, and on the right "Environment: <env>", a dropdown to switch environments (a plain label when there is only one; when the row is too narrow its start is clipped, so the end of the name and the arrow stay visible). Then groups with their titles in square brackets, each foldable (open by default, with chevrons):
+  - `[Environment]`: the active environment's platform targets, in the order `pio` reports them. A sub-folder `[Extra Scripts]` holds the targets the environment's own `extra_scripts` add.
   - `[Custom]`: the other targets whose group is `Custom` (they come from the platform package).
   - `[Project]`: Build, Debug, Clean.
   - `[PlatformIO]`: PlatformIO Home, Install Updates, Serial Monitor, Analyze Code.
   - `[Extra Scripts]` and `[Custom]` show only when they have entries.
   - A `platformio.ini` row opens the file in the editor; an "Upload & Monitor" row follows `upload`.
-- **Footer, 36px:** "Upload port:" and a button that cycles through the serial ports (`Auto` by default).
+- **Footer, 36px:** "Upload port:" and a dropdown of the connected serial ports (`Auto` by default), read with `pio device list` each time it opens.
 - Each task has a 12px icon in the theme's `muted` color: a triangle by default, a hammer (`ansi3`) for Build, a bug (`ansi2`) for Debug, a broom (`ansi6`) for Clean. The PlatformIO logo sits in the header.
 
 ## How it behaves
