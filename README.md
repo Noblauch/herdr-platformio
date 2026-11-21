@@ -1,7 +1,8 @@
 # herdr-platformio
 
-PlatformIO panel for [herdr](https://herdr.dev): the targets of the active environment, the groups
-*Project* and *PlatformIO*, and an editable `platformio.ini`. Clicking a task runs `pio` in a herdr terminal.
+PlatformIO for [herdr](https://herdr.dev): run build, upload and monitor tasks, and edit your `platformio.ini`,
+all from one view. It lists the tasks of the active environment (General, Extra Scripts, Platform, Advanced)
+and PlatformIO's own; clicking a task runs `pio` in a herdr terminal.
 
 Requires `pio` on the machine, macOS/Linux and `/bin/sh`.
 
@@ -14,19 +15,25 @@ cp -r mods/platformio ~/.config/herdr-app/mods/platformio
 herdr-app check ~/.config/herdr-app/mods/platformio
 ```
 
-herdr reloads mods on its own; no restart and no `keys.json` or layout change is needed.
+herdr reloads mods on its own; no restart and no `keys.json` change is needed.
 
-## Open it as a tab
+**Recommended:** a "PlatformIO" button next to Files and Changes that opens the mod as a side panel.
+herdr has no way for a mod to add that button by itself, so it takes a small change to your layout;
+your agent does it when you agree (steps in [`RECIPE.md`](RECIPE.md#recommended-install)). herdr's own
+`main` layout is read-only, so the agent first clones it; a clone no longer receives herdr's updates to `main`.
 
-The mod is a normal herdr mod pane. To open it in a tab of the current space, run the command
-`tab.new` with the mod `platformio`: from the command palette (Cmd+Shift+P), or from a shell:
+## Or open it as a tab
+
+Without the layout change, open the mod in a tab of the current space: run the command
+`tab.new` with the mod `platformio`, from the command palette (Cmd+Shift+P), or from a shell:
 
 ```sh
 herdr-app do tab.new --mod platformio --name PlatformIO
 ```
 
-The panel shows the project whose `platformio.ini` lies directly in the folder of the focused pane
-(else the current space's folder); it does not search parent or sub folders. Close the tab like any other.
+The mod shows the project whose `platformio.ini` lies directly in the folder of the focused terminal pane,
+else in the current space's folder. Opened as a tab, the mod itself has the focus, so the space's folder
+must hold the `platformio.ini`. It does not search parent or sub folders. Close the tab like any other.
 
 ## What it runs and touches
 

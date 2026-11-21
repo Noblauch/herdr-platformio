@@ -1,5 +1,5 @@
-// PlatformIO tasks for the focused pane's project: the
-// active environment's General, Extra Scripts, Platform and Advanced tasks, then PlatformIO. A click runs the task in a terminal.
+// PlatformIO tasks for the focused pane's project: the active environment's General, Extra Scripts,
+// Platform and Advanced tasks, then PlatformIO. A click runs the task in a terminal.
 // With props { button: true } it draws the tab bar button that shows this panel instead.
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Popover, Editor, EditorState } from "gpui-base";
@@ -57,7 +57,7 @@ export default class PlatformIO extends View {
     }
     this.refresh(cx);
     cx.timer.every(10000, (cx) => this.refresh(cx));
-    // "platformio.ini" (a key in keys.json) opens and closes the platformio.ini viewer.
+    // The commands "platformio.ini" (open or close the editor) and "platformio.save" can be bound in keys.json.
     cx.spawn(async (cx) => {
       for (;;) {
         const command = await nextCommand();
@@ -77,7 +77,8 @@ export default class PlatformIO extends View {
       try {
         this.pio ??= await findPio(on);
         if (!this.pio) { this.error = "PlatformIO (pio) was not found on PATH"; return; }
-        const dir = (await readTextFile(`${cwd}/platformio.ini`, { on }).catch(() => null)) === null ? null : cwd;
+        const ini = await readTextFile(`${cwd}/platformio.ini`, { on }).catch(() => null);
+        const dir = ini === null ? null : cwd;
         if (dir !== this.dir) {
           const saved = load(`prefs:${dir}`) ?? {};
           this.view(null);
@@ -85,7 +86,6 @@ export default class PlatformIO extends View {
           this.env = saved.env ?? null; this.port = saved.port ?? null; this.verbose = Boolean(saved.verbose);
         }
         if (!dir) return;
-        const ini = await readTextFile(`${dir}/platformio.ini`, { on });
         if (this.code && ini !== this.shown) { if (this.dirty) this.stale = true; else this.view(ini); }
         if (ini === this.ini && !force) return;
         const config = await exec(this.pio, ["project", "config", "--json-output"], { cwd: dir, on });
@@ -191,13 +191,14 @@ export default class PlatformIO extends View {
 
   // Lists the connected serial devices each time the port menu opens.
   listPorts(cx) {
-    this.ports = null;
+    this.ports = null; this.portError = null;
     if (!this.pio || !this.dir) { this.ports = []; return; }
     cx.spawn(async (cx) => {
       try {
         const r = await exec(this.pio, ["device", "list", "--json-output"], { on: this.on });
+        if (r.code !== 0) throw new Error(r.stderr.trim().split("\n").pop() || "pio device list failed");
         this.ports = JSON.parse(r.stdout).filter((d) => d.hwid && d.hwid !== "n/a").map((d) => d.port);
-      } catch (e) { this.ports = []; this.error = String(e?.message ?? e); }
+      } catch (e) { this.ports = []; this.portError = String(e?.message ?? e); }
       finally { cx.notify(); }
     });
   }
@@ -286,7 +287,7 @@ export default class PlatformIO extends View {
       (open, cx) => { this.pickingPort = open; if (open) this.listPorts(cx); cx.notify(); },
       [{ value: null, label: "Auto", on: !this.port, pick: (cx) => this.selectPort(null, cx) },
         ...(this.ports ?? []).map((p) => ({ value: p, label: p, on: p === this.port, pick: (cx) => this.selectPort(p, cx) }))],
-      this.ports == null ? "Searching…" : this.ports.length ? null : "No devices found");
+      this.ports == null ? "Searching…" : this.ports.length ? null : this.portError ?? "No devices found");
     if (this.dir && this.ini != null) rows.push(h_flex().h(28).flex_none().items_center()
       .child(h_flex().id("pio-ini").flex_none().h_full().pl(8).pr(4).gap(8).items_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
         .on_click((_e, cx) => { this.view(this.ini); cx.notify(); })
@@ -326,7 +327,7 @@ export default class PlatformIO extends View {
         .when(viewing && this.dirty, (el) => el.child(tool("pio-ini-save", this.saving ? "Saving…" : "Save", true, (_e, cx) => this.save(cx))))
         .when(!viewing, (el) => el
           .child(tool("pio-verbose", "Verbose", this.verbose, (_e, cx) => { this.verbose = !this.verbose; if (this.dir) this.savePrefs(); cx.notify(); }, "Add -v to the pio commands for more detailed output"))))
-      .when(viewing, (el) => el.child(div().id("pio-ini").flex_1().min_h(0)        .child(Editor.new(this.code))))
+      .when(viewing, (el) => el.child(div().id("pio-ini-editor").flex_1().min_h(0).child(Editor.new(this.code))))
       .when(!viewing, (el) => el.child(v_flex().id("pio-tree").flex_1().min_h(0).overflow_y_scrollbar().p(8).children(rows)
         .when(Boolean(empty), (el) => el.child(div().p(8).text_size(12).text_color(this.error ? t.ansi1 : t.dim).child(empty)))))
       .when(Boolean(this.dir) && !viewing, (el) => el.child(h_flex().h(36).flex_none().px(16).gap(8).items_center().border_t(1).border_color(t.border).text_size(12)
