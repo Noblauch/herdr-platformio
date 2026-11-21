@@ -1,10 +1,11 @@
 # herdr-platformio
 
-PlatformIO for [herdr](https://herdr.dev): run build, upload and monitor tasks, and edit your `platformio.ini`,
-all from one view. It lists the tasks of the active environment (General, Extra Scripts, Platform, Advanced)
-and PlatformIO's own; clicking a task runs `pio` in a herdr terminal.
+![PlatformIO logo next to the herdr-platformio panel](preview.png)
 
-Requires `pio` on the machine, macOS/Linux and `/bin/sh`.
+PlatformIO for [herdr](https://herdr.dev): build, upload, monitor and every other task of your PlatformIO project
+in one panel, plus an editor for `platformio.ini`. A click on a task runs `pio` in a herdr terminal.
+
+Requires PlatformIO Core (`pio`) and macOS or Linux.
 
 ## Install
 
@@ -15,41 +16,46 @@ cp -r mods/platformio ~/.config/herdr-app/mods/platformio
 herdr-app check ~/.config/herdr-app/mods/platformio
 ```
 
-herdr reloads mods on its own; no restart and no `keys.json` change is needed.
+herdr reloads mods on its own; no restart is needed.
 
 **Recommended:** a "PlatformIO" button next to Files and Changes that opens the mod as a side panel.
-herdr has no way for a mod to add that button by itself, so it takes a small change to your layout;
-your agent does it when you agree (steps in [`RECIPE.md`](RECIPE.md#recommended-install)). herdr's own
-`main` layout is read-only, so the agent first clones it; a clone no longer receives herdr's updates to `main`.
+A mod can't add that button itself, so it takes a small change to your layout; your agent makes it
+once you agree (steps in [`RECIPE.md`](RECIPE.md#recommended-install)). herdr's built-in `main` layout is
+read-only, so the agent clones it first, and the clone no longer receives herdr's updates to `main`.
 
 ## Or open it as a tab
 
-Without the layout change, open the mod in a tab of the current space: run the command
-`tab.new` with the mod `platformio`, from the command palette (Cmd+Shift+P), or from a shell:
+Without the layout change, run the command `tab.new` with the mod `platformio` from the command palette
+(Cmd+Shift+P), or from a shell:
 
 ```sh
 herdr-app do tab.new --mod platformio --name PlatformIO
 ```
 
-The mod shows the project whose `platformio.ini` lies directly in the folder of the focused terminal pane,
-else in the current space's folder. Opened as a tab, the mod itself has the focus, so the space's folder
-must hold the `platformio.ini`. It does not search parent or sub folders. Close the tab like any other.
+## Usage
+
+- **Project:** the folder of the focused terminal pane, else the current space's folder, when it holds a
+  `platformio.ini` itself; parent and sub folders are not searched. Opened as a tab, the mod has the focus
+  itself, so it uses the space's folder.
+- **Keys:** the commands `platformio.ini` (open or close the editor) and `platformio.save` can be bound in `keys.json`.
 
 ## What it runs and touches
 
-- Programs: `pio` (or `platformio`, also found in `~/.platformio/penv/bin`) for everything PlatformIO does, and
-  `/bin/sh` only as a wrapper that keeps a task's terminal open until Enter.
-- Without a click: whenever the focused folder holds a `platformio.ini`, the mod runs `pio --version`,
-  `pio project config` and `pio project metadata -e <env>` (slow, up to a few minutes; cached per environment until
-  `platformio.ini` changes). A timer checks every 10 seconds whether the folder or file changed.
-  `pio device list` runs each time the port dropdown opens. Everything else runs only when you click a task.
+- Programs: `pio` (else `platformio`, else `~/.platformio/penv/bin/pio`, the installer's default place) for
+  everything PlatformIO does, and `/bin/sh` only as a wrapper that keeps a task's terminal open until Enter.
+- Without a click: `pio --version` once, to find `pio`. When the folder holds a `platformio.ini`, also
+  `pio project config` and `pio project metadata -e <env>` (slow: often 15 to 45 seconds, longer when it first
+  downloads a platform; it gives up after 5 minutes). Both run again only when `platformio.ini` changes or
+  the reload icon is clicked; the targets are cached per environment. A timer checks every 10 seconds whether
+  the folder or file changed. `pio device list` runs each time the port dropdown opens. Everything else runs
+  only when you click a task.
 - Files: it reads `platformio.ini` and the `extra_scripts` files named in it, and writes `platformio.ini` only when you press Save.
 - Network: the mod makes no requests of its own, but `pio` does: Update Packages, Upgrade PlatformIO and
   PlatformIO Home go online, and `pio project metadata` may download a missing platform or toolchain the first time.
 - State: small caches (targets, chosen environment, port, Verbose) in the mod's `localStorage`. The tab bar button
   adds `platformio` to herdr's shared `workspace.panels` list, so the tab bar remembers the panel per space.
-- Remote spaces: in a space on another machine, `pio` runs and `platformio.ini` is read on that machine;
-  saving the file works on this computer only.
+- Remote spaces: in a space on another machine, `pio` (which must be on that machine's PATH) runs and
+  `platformio.ini` is read there; saving the file works on this computer only.
 
 ## Notes
 
