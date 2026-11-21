@@ -18,15 +18,15 @@ A mod pane, opened as a tab (`tab.new {mod: "platformio"}`). Top to bottom:
   - `[Extra Scripts]` and `[Platform]` show only when they have entries.
   - A `platformio.ini` row opens the file in the editor.
 - **Footer, 36px:** "Upload port:" and a dropdown of the connected serial ports (`Auto` by default), read with `pio device list` each time it opens.
-- Each task has a 12px icon in the theme's `muted` color: a triangle by default, a hammer (`ansi3`) for Build, a broom (`ansi6`) for Clean. The PlatformIO logo sits in the header.
+- Each task has a 12px icon in the theme's `muted` color: a triangle by default, a hammer (`ansi3`) for Build, an upload arrow (`ansi2`) for Build & Upload and Build & Upload & Monitor, a terminal (`ansi4`) for Serial Monitor, a trash can (`muted`, like the default) for Clean. The PlatformIO logo sits in the header.
 
 ## How it behaves
 
 - **Project:** the focused pane's folder (else the space's folder), and only that folder: it counts as a project when it holds a `platformio.ini` itself. There is no search up or down. Without one the panel says "No platformio.ini in this folder".
 - **Environment:** the saved one, else `default_envs`, else the first. The choice, the port and "Verbose" are remembered per project.
 - **Targets:** from `pio project metadata -e <env> --json-output`, which can take 15 to 45 seconds. The result is kept per project and environment (in `localStorage`) and fetched again only when `platformio.ini` changes or "Reload" is pressed. A timer checks every 10 seconds whether the folder or file changed.
-- **Run a task:** a click opens a terminal under the focused pane (a new tab when no pane has focus) and runs the command; the task's icon turns the `working` color while it runs. A new task closes the previous output terminal; a monitor stays open until a task needs the serial port. The terminal stays after the program ends until Enter is pressed.
-- **Commands:** targets run `pio run -e <env> -t <target>`; Build `pio run -e <env>`; Build & Upload `-t upload`; Build & Upload & Monitor `-t upload -t monitor`; Clean `-t clean`; Serial Monitor `pio device monitor -e <env>`; Analyze Code `pio check -e <env>`; Update Packages `pio pkg update -e <env>`; Home `pio home`; Upgrade PlatformIO `pio upgrade`. "Verbose" adds `-v`, a chosen port adds `--upload-port <port>` (Build & Upload & Monitor also `--monitor-port <port>`, Serial Monitor `--port <port>`).
+- **Run a task:** a click opens a terminal under the focused pane (a new tab when no pane has focus) and runs the command; the task's icon turns the `working` color while its terminal is open (only tasks with the default triangle; tasks with their own icon keep their color). A new task closes the previous output terminal; a monitor stays open until a task needs the serial port. The terminal stays after the program ends until Enter is pressed.
+- **Commands:** targets run `pio run -e <env> -t <target>`; Build `pio run -e <env>`; Build & Upload `-t upload`; Build & Upload & Monitor `-t upload -t monitor`; Clean `-t clean`; Serial Monitor `pio device monitor -e <env>`; Analyze Code `pio check -e <env>`; Update Packages `pio pkg update -e <env>`; Home `pio home`; Upgrade PlatformIO `pio upgrade`. A tooltip on each task shows its full command (`pio …` with the current flags). "Verbose" adds `-v`, a chosen port adds `--upload-port <port>` (Build & Upload & Monitor also `--monitor-port <port>`, Serial Monitor `--port <port>`).
 - **Editor:** a click on the `platformio.ini` row opens the file in herdr's `Editor` (editable, line numbers, no syntax colours). "Save" writes the file with `writeTextFile(path, text, expected)`, which fails when the file changed on disk meanwhile, then reloads the targets. If the file changes on disk while there are unsaved edits, nothing is overwritten: the header says "platformio.ini changed on disk" and shows "Reload" (discards the edits). The back arrow asks once ("click ← again to discard") when there are unsaved changes. Saving works on this computer only.
 - Groups and sub-folders fold and unfold by click.
 
@@ -34,7 +34,7 @@ A mod pane, opened as a tab (`tab.new {mod: "platformio"}`). Top to bottom:
 
 - One file, `mods/platformio/main.js`, a `View` class; `mod.json` is `{ "place": "none", "title": "PlatformIO" }`.
 - `herdr`: `spaces`, `panes`, `focused`, `terminals`, `exec`, `readTextFile`, `writeTextFile`, `run` (`terminal.open`), `theme`, `checking`; `gpui-base`: `Editor`, `EditorState`, `Popover`.
-- Icons in the folder: `logo.svg` (the PlatformIO logo), `task.svg`, `hammer.svg`, `bug.svg`, `broom.svg`, `chevron-down.svg`, `chevron-right.svg`. `svg()` tints the whole icon in one color.
+- Icons in the folder: `logo.svg` (the PlatformIO logo), `task.svg`, `hammer.svg`, `bug.svg`, `upload.svg`, `terminal.svg`, `trash.svg`, `refresh.svg`, `chevron-down.svg`, `chevron-right.svg`. `svg()` tints the whole icon in one color.
 - Programs it runs: `pio` and `/bin/sh` (the terminal wrapper only; see README).
 
 ## Watch out

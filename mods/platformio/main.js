@@ -220,10 +220,10 @@ export default class PlatformIO extends View {
     return [
       { id: "general", title: env ? "General" : "No environment", tasks: !env ? [] : [
         { id: "build", title: "Build", icon: "hammer", color: "ansi3", args: target() },
-        ...(upload ? [{ ...task(upload), title: "Build & Upload" },
-          { id: "upload-monitor", title: "Build & Upload & Monitor", args: [...target("upload", "monitor"), ...port, ...(this.port ? ["--monitor-port", this.port] : [])], serial: true }] : []),
-        { id: "monitor", title: "Serial Monitor", args: ["device", "monitor", "-e", env, ...(this.port ? ["--port", this.port] : [])], serial: true },
-        { id: "clean", title: "Clean", icon: "broom", color: "ansi6", args: target("clean") }] },
+        ...(upload ? [{ ...task(upload), title: "Build & Upload", icon: "upload", color: "ansi2" },
+          { id: "upload-monitor", title: "Build & Upload & Monitor", icon: "upload", color: "ansi2", args: [...target("upload", "monitor"), ...port, ...(this.port ? ["--monitor-port", this.port] : [])], serial: true }] : []),
+        { id: "monitor", title: "Serial Monitor", icon: "terminal", color: "ansi4", args: ["device", "monitor", "-e", env, ...(this.port ? ["--port", this.port] : [])], serial: true },
+        { id: "clean", title: "Clean", icon: "trash", args: target("clean") }] },
       ...(scriptTasks.length ? [{ id: "scripts", title: "Extra Scripts", tasks: scriptTasks }] : []),
       ...(platformTasks.length ? [{ id: "platform", title: "Platform", tasks: platformTasks }] : []),
       ...(!env ? [] : [{ id: "advanced", title: "Advanced", tasks: [
@@ -307,8 +307,8 @@ export default class PlatformIO extends View {
           .child(div().flex_1().min_w(0).truncate().child(`[${g.title}]`))));
       if (!open) continue;
       const taskRow = (task, pl) => h_flex().id(`pio-task-${task.id}`).h(26).flex_none().pl(pl).pr(8).gap(8).items_center().rounded(6).cursor_pointer().hover((s) => s.bg(t.hover))
-        .on_click(() => this.start(task))
-        .child(svg(`mods/platformio/${task.icon ?? "task"}.svg`).size(12).flex_none().text_color(live.has(termName(task)) ? t.working : t[task.color] ?? t.muted))
+        .tooltip(["pio", ...task.args].join(" ")).on_click(() => this.start(task))
+        .child(svg(`mods/platformio/${task.icon ?? "task"}.svg`).size(12).flex_none().text_color(!task.icon && live.has(termName(task)) ? t.working : t[task.color] ?? t.muted))
         .child(div().flex_1().min_w(0).truncate().child(task.title));
       for (const task of g.tasks) rows.push(taskRow(task, 28));
       if (g.id === "general" && this.loading) rows.push(div().h(26).flex_none().pl(28).flex().items_center().text_size(12).text_color(t.dim).child("Loading targets…"));
