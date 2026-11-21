@@ -39,5 +39,5 @@ The panel shows the project whose `platformio.ini` lies directly in the folder o
 
 - `mods/platformio/logo.svg` is the PlatformIO logo by PlatformIO, licensed under the Apache License 2.0
   (<https://www.apache.org/licenses/LICENSE-2.0>), taken from
-  <https://de.wikipedia.org/wiki/Datei:PlatformIO_logo.svg>. The logo is a trademark of PlatformIO.
+  <https://de.wikipedia.org/wiki/Datei:PlatformIO_logo.svg>. The logo is a trademark of PlatformIO. The MIT license of this repository does not cover the logo.
 - The `platformio.ini` editor has no syntax colours: herdr has no INI grammar.
