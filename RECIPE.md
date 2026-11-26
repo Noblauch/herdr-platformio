@@ -35,7 +35,7 @@ A side panel on the right, shown and hidden by a "PlatformIO" button (logo and l
 - One file, `mods/platformio/main.js`, a `View` class with two `props` roles: none is the panel itself, `{ "button": true }` is the tab bar button (it toggles `panel` and selects the `platformio` child of `panel-body`, and adds `"platformio"` to shared `"workspace.panels"` so the tabs mod restores it per space). `mod.json` is `{ "place": "none", "title": "PlatformIO" }`.
 - `gpui-kit`: `View`, `div`, `image`, `svg`; `herdr`: `spaces`, `panes`, `focused`, `terminals`, `exec`, `readTextFile`, `writeTextFile`, `run` (`terminal.open`, `terminal.kill`, `pane.split`, `pane.swap`, `layout.select`, `layout.show`, `layout.hide`), `layout`, `home`, `props`, `shared`, `setShared`, `theme`, `settings`, `nextCommand`, `checking`; `gpui-base`: `v_flex`, `h_flex`, `Editor`, `EditorState`, `Popover`. Caches and preferences live in `localStorage`.
 - Icons in the folder: `logo.svg` (the PlatformIO logo), `task.svg`, `hammer.svg`, `upload.svg`, `terminal.svg`, `trash.svg`, `refresh.svg`, `chevron-down.svg`, `chevron-right.svg`. `svg()` tints the whole icon in one color. Task icons use 2px strokes with round caps and joins, rounded corners a 2.5 radius; only the upload icon has a filled arrow and a 3px bar.
-- Programs it runs: `pio`, and `/bin/sh` with `head` (the terminal wrapper only; see README).
+- Programs it runs: `pio`, and the terminal wrapper only (see README): `/bin/sh` with `head` on macOS and Linux, `powershell.exe` on Windows.
 
 ## Recommended install
 
@@ -57,9 +57,9 @@ A side panel on the right, shown and hidden by a "PlatformIO" button (logo and l
 
 - `pio project metadata` is slow: it loads the environment's whole build configuration (no compiling). Bumping the cache key (`targets-v3`) makes every project fetch its targets again, and any edit to `platformio.ini` does so for that project, so do either only on purpose.
 - herdr has no INI grammar: `ini` and `toml` are unknown languages (no colours), `yaml` colours the whole file green and `properties` colours it wrongly. Leave the editor without colours.
-- Terminals are recognised by their `argv`; the `sh -c` wrapper is `argv[2]`, the task name `argv[3]` and its title `argv[4]` (`[<title>]`). The wrapper sets the terminal title to it (`OSC 2`), which the pane header shows. It waits for Enter with `exec head -n 1`, not the shell's `read`: herdr's header names a waiting shell "sh" instead of the title.
+- Terminals are recognised by their `argv`. On macOS and Linux the `sh -c` wrapper is `argv[2]`, the task name `argv[3]` and its title `argv[4]` (`[<title>]`). On Windows the argv is `powershell.exe -NoProfile -Command <script>`; the script's first line is a comment `<#pio-<task>#>` naming the task, and it quotes the title and the `pio` command into itself. The platform comes from `window().platform` (the POSIX wrapper is used when there is no window, as in `herdr-app check`). The wrapper sets the terminal title to it (`OSC 2`), which the pane header shows. It waits for Enter with `exec head -n 1`, not the shell's `read`: herdr's header names a waiting shell "sh" instead of the title.
 - A replaced task terminal hands its pane to the new one: herdr gives a closed pane's space to the pane above it, so the mod splits the old pane down, swaps the new pane above it (`pane.swap` with `target`; a swap by `direction` does not keep the size) and then kills the old terminal.
-- macOS and Linux only (the wrapper is `/bin/sh`).
+- Windows, macOS and Linux. Only the terminal wrapper differs per platform; the Windows one waits with `[Console]::In.ReadLine()` and sets the title with `OSC 2`, as the POSIX one does.
 
 ## Done when
 

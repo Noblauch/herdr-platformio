@@ -3,7 +3,7 @@
 // With props { button: true } it draws the tab bar button that shows this panel instead.
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex, Popover, Editor, EditorState } from "gpui-base";
-import { spaces, panes, focused, terminals, layout, home, exec, readTextFile, writeTextFile, run, theme, settings, props, shared, setShared, nextCommand, checking } from "herdr";
+import { spaces, panes, focused, terminals, layout, home, exec, readTextFile, writeTextFile, run, theme, settings, props, shared, setShared, nextCommand, checking, window } from "herdr";
 
 // Spacing is a 4px grid: 4 between small controls, 8 inside rows and between an icon and its label,
 // 16 from the panel edge to the text (8 around the tree plus 8 inside a row).
@@ -14,9 +14,14 @@ function location() {
   return { cwd: pane?.cwd || f?.cwd || space?.folder, on };
 }
 
+// Task terminals start on this computer, so its platform decides the wrapper. There is no window during
+// `herdr-app check`; the POSIX wrapper stands in then.
+const windows = () => window()?.platform === "windows";
+
 // pio is on PATH, else in PlatformIO's own virtualenv (the installer's default place).
 async function findPio(on) {
-  const candidates = ["pio", "platformio", ...(on ? [] : [`${home()}/.platformio/penv/bin/pio`])];
+  const venv = windows() ? "Scripts/pio.exe" : "bin/pio";
+  const candidates = ["pio", "platformio", ...(on ? [] : [`${home()}/.platformio/penv/${venv}`])];
   for (const command of candidates) {
     try { if ((await exec(command, ["--version"], { on })).code === 0) return command; } catch {}
   }
@@ -37,9 +42,24 @@ const find = (node, id) => {
   for (const child of node.children ?? []) { const hit = find(child, id); if (hit) return hit; }
   return null;
 };
+// Windows has no /bin/sh: Windows PowerShell does the same job. The program and its arguments are quoted into the
+// script, which starts with a comment naming the task; that comment is how the terminal is recognised.
+const quote = (text) => `'${String(text).replaceAll("'", "''")}'`;
+const psWrap = (name, title, command) => [`<#${name}#>`,
+  `[Console]::Write([char]27 + ']2;' + ${quote(title)} + [char]7)`,
+  `& ${command.map(quote).join(" ")}`,
+  `$c = $LASTEXITCODE`,
+  `[Console]::Write([char]10 + [char]27 + '[2m[exit ' + $c + '] Press Enter to close' + [char]27 + '[0m ')`,
+  `[void][Console]::In.ReadLine()`].join("\n");
 const termName = (task) => `pio-${task.id}`;
-// A task's terminal is known by its argv: the wrapper, then the task as the script's $0.
-const taskOf = (terminal) => terminal.state === "live" && terminal.argv?.[2] === WRAP ? terminal.argv[3] : null;
+// A task's terminal is known by its argv: /bin/sh, -c, the wrapper, then the task as the script's $0; on Windows
+// powershell.exe, -NoProfile, -Command and the script, whose first line is the comment `<#name#>`.
+const taskOf = (terminal) => {
+  if (terminal.state !== "live") return null;
+  const argv = terminal.argv ?? [];
+  if (argv[2] === WRAP) return argv[3];
+  return /^powershell(\.exe)?$/i.test(argv[0] ?? "") && argv[2] === "-Command" ? argv[3]?.match(/^<#(pio-[^#]*)#>/)?.[1] ?? null : null;
+};
 
 export default class PlatformIO extends View {
   init(_props, cx) {
@@ -234,7 +254,10 @@ export default class PlatformIO extends View {
 
   // One task terminal at a time: a new task replaces the running one, in its pane when it is in this tab.
   start(task, cx) {
-    const argv = ["/bin/sh", "-c", WRAP, termName(task), `[${task.title}]`, this.pio, ...task.args];
+    const title = `[${task.title}]`, command = [this.pio, ...task.args];
+    const argv = windows()
+      ? ["powershell.exe", "-NoProfile", "-Command", psWrap(termName(task), title, command)]
+      : ["/bin/sh", "-c", WRAP, termName(task), title, ...command];
     const old = terminals().filter(taskOf);
     const tab = focused()?.tab;
     const slot = panes().find((p) => p.tab === tab && p.cwd === this.dir && old.some((o) => o.address === p.terminal));
